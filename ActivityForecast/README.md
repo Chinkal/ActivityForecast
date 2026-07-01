@@ -1,142 +1,194 @@
 # Activity Forecast
 
-Native iOS app that lets you search for a city and see a ranked list of activities suitable for that location over the next 7 days, based on Open-Meteo weather forecast data.
+## Project Overview
 
-## Features
+Activity Forecast is a native iOS application built with SwiftUI that allows users to search for a city and view a ranked list of activities based on the next 7 days of weather forecast.
 
-- City search via Open-Meteo Geocoding API
-- 7-day daily weather forecast via Open-Meteo Forecast API
-- Ranked activities: Skiing, Surfing, Outdoor Sightseeing, Indoor Sightseeing
-- Debounced search with explicit loading, empty, and error states
-- Unit tests for ranking logic and search ViewModel
+The application uses the Open-Meteo Geocoding API to search for cities and the Open-Meteo Forecast API to retrieve weather data. Based on the forecast, it ranks the following activities:
+
+- Skiing
+- Surfing
+- Outdoor Sightseeing
+- Indoor Sightseeing
+
+The primary focus of this project is clean architecture, maintainability, testability, and explicit state management.
+
+---
+
+## Platform & Technologies
+
+- Swift 6
+- SwiftUI
+- iOS 26.2
+- Async/Await
+- Observation Framework (`@Observable`)
+- XCTest
+- No third-party libraries
+
+---
 
 ## Architecture
 
-The app uses **SwiftUI + MVVM** with a lightweight layered architecture:
+The application follows a layered **MVVM + Clean Architecture** approach.
 
 ```
-Presentation (Views + ViewModels)
-        ↓
-Domain (Models, Protocols, ActivityRankingService)
-        ↓
-Data (API Clients, DTOs, Repositories)
+Presentation
+      │
+      ▼
+   Domain
+      │
+      ▼
+     Data
 ```
 
-### Layer responsibilities
+### Presentation
+- SwiftUI Views
+- ViewModels
+- Navigation
+- UI State Management
 
-| Layer | Role |
-|-------|------|
-| **Presentation** | SwiftUI views, `@Observable` ViewModels, explicit state enums |
-| **Domain** | Business models, repository protocols, pure ranking logic |
-| **Data** | HTTP client, Open-Meteo API clients, DTO decoding, repository implementations |
+### Domain
+- Business Models
+- Repository Protocols
+- ActivityRankingService
 
-### Dependency injection
+### Data
+- API Clients
+- DTOs
+- Repository Implementations
+- Networking
 
-Dependencies are wired in `ActivityForecastApp` (composition root) and passed down as protocols (`GeocodingRepositoryProtocol`, `WeatherRepositoryProtocol`). This keeps ViewModels testable with mock repositories.
+Dependency Injection is implemented using protocols, making ViewModels independent of concrete implementations and easy to test.
 
-### Data flow
+---
 
-1. User types a city name → `CitySearchViewModel` debounces and calls `GeocodingRepository`
-2. User selects a city → navigates to `ActivityRankingView`
-3. `ActivityRankingViewModel` fetches 7-day forecast → `ActivityRankingService.rank()` → UI displays ranked list
+## API Usage
 
-## APIs used
+### Geocoding API
 
-### Geocoding
-```
-GET https://geocoding-api.open-meteo.com/v1/search?name={query}&count=10&language=en
-```
+Used to search cities by name.
 
-### Forecast
-```
-GET https://api.open-meteo.com/v1/forecast
-  ?latitude={lat}&longitude={lon}&timezone={tz}&forecast_days=7
-  &daily=temperature_2m_max,temperature_2m_min,precipitation_sum,
-         snowfall_sum,wind_speed_10m_max,weather_code
-```
+Returns:
 
-No API key required for non-commercial use.
+- City name
+- Coordinates
+- Country
+- Timezone
 
-## Weather assumptions
+### Forecast API
 
-| Field | Why |
-|-------|-----|
-| **Daily aggregates** | Simpler and appropriate for "suitability over 7 days" vs hourly detail |
-| **`temperature_2m_max/min`** | Comfort range for outdoor/indoor; cold threshold for skiing |
-| **`precipitation_sum`** | Penalizes outdoor activities on wet days; boosts indoor |
-| **`snowfall_sum`** | Primary signal for skiing suitability |
-| **`wind_speed_10m_max`** | Proxy for surfing — Open-Meteo free tier has no wave height data |
-| **`weather_code`** | WMO codes for rain, storms, fog, and clear skies |
+Used to retrieve a 7-day weather forecast.
 
-The city's `timezone` from geocoding is passed to the forecast API so daily buckets align with local days.
+Weather fields used:
 
-## Ranking algorithm
+- Maximum Temperature
+- Minimum Temperature
+- Precipitation
+- Snowfall
+- Maximum Wind Speed
+- Weather Code
 
-Each activity is scored **per day** (0–100), then **averaged** across the forecast period. Activities are sorted by average score descending.
+The timezone returned by the Geocoding API is passed to the Forecast API to ensure accurate local forecasts.
 
-| Activity | Good conditions | Penalties |
-|----------|-----------------|-----------|
-| **Skiing** | Cold (`tempMax ≤ 2°C`), snowfall | Warm days, rain without snow |
-| **Surfing** | Wind 15–35 km/h | Calm wind (<8), storms, heavy rain |
-| **Outdoor sightseeing** | Mild temps (5–25°C), dry, clear skies | Extreme temps, rain/storms |
-| **Indoor sightseeing** | Rain, cold, storms (inverse of outdoor) | Sunny mild days; heavy snow (ski weather) |
+---
 
-A day counts as "suitable" in the summary if its score is ≥ 60.
+## Activity Ranking Logic
 
-## Trade-offs (3–4 hour scope)
+Each forecast day is scored between **0–100** for every activity. The final activity score is calculated by averaging the scores across all available forecast days.
 
-- No persistence, favorites, or offline cache
-- No map UI or per-day expandable breakdown
-- Surfing scored from wind speed only (no marine/wave API)
-- Minimal visual polish — functional list UI with loading/error states
-- Swift Testing framework used instead of XCTest for modern test syntax
+| Activity | Preferred Conditions |
+|----------|----------------------|
+| Skiing | Cold temperatures with snowfall |
+| Surfing | Moderate wind with low rainfall |
+| Outdoor Sightseeing | Mild temperature, dry weather and clear skies |
+| Indoor Sightseeing | Rainy, cold or stormy weather |
 
-## Requirements
+Activities are sorted by score and displayed from highest to lowest recommendation.
 
-- Xcode 26+
-- iOS 26.2+ deployment target
-- Internet connection for API calls
+### Assumptions
 
-## How to run
+- Wind speed is used as a proxy for surfing suitability because Open-Meteo does not provide wave height data.
+- Outdoor sightseeing uses weather codes together with temperature and precipitation since cloud cover is only available through the hourly API.
+- Rankings are calculated using all available forecast days if fewer than seven are returned.
 
-1. Open `ActivityForecast.xcodeproj` in Xcode
-2. Select an iOS Simulator
-3. Press **Cmd+R**
+---
 
-## How to test
+## Error Handling
 
-Press **Cmd+U** in Xcode, or from the command line:
+The application handles:
+
+- Invalid URLs
+- Network failures
+- HTTP errors
+- JSON decoding failures
+- Empty search results
+
+Meaningful error messages are displayed to users, while empty search results are treated as a valid application state.
+
+---
+
+## Testing
+
+The project includes unit tests for the core business logic and presentation layer.
+
+### ActivityRankingServiceTests
+
+- Snowy weather ranks skiing highest
+- Rainy weather ranks indoor sightseeing highest
+- Windy weather improves surfing ranking
+- Empty weather data is handled safely
+
+### CitySearchViewModelTests
+
+- Short queries do not trigger API requests
+- Successful searches return results
+- Repository failures transition to the failure state
+
+Mock repositories are used to isolate ViewModels from networking dependencies.
+
+---
+
+## Build & Run
+
+### Requirements
+
+- Xcode 26 or later
+- iOS 26.2 SDK
+
+### Run
+
+1. Open the project in Xcode.
+2. Select an iOS Simulator.
+3. Press **⌘R** to build and run.
+
+### Run Tests
+
+Press **⌘U** in Xcode
+
+or
 
 ```bash
-xcodebuild -scheme ActivityForecast \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  test
+xcodebuild test
 ```
 
-### Test coverage
+---
 
-- **`ActivityRankingServiceTests`** — snowy week → skiing first; rainy week → indoor first; windy week → surfing competitive; mild clear week → outdoor first
-- **`CitySearchViewModelTests`** — short query skipped, success/empty/failure states with mock repository
+## Production Readiness
 
-## Project structure
+With additional development time, the application could be enhanced with:
 
-```
-ActivityForecast/
-├── App/                    # App entry + DI
-├── Domain/
-│   ├── Models/
-│   ├── Protocols/
-│   └── Services/           # ActivityRankingService
-├── Data/
-│   ├── Networking/
-│   ├── API/
-│   └── Repositories/
-└── Presentation/
-    ├── Search/
-    └── Activities/
+- Offline caching
+- Retry strategies for network requests
+- Accessibility improvements
+- Localization
+- UI and Snapshot tests
+- Analytics and logging
+- CI/CD pipeline
 
-ActivityForecastTests/
-├── Mocks/
-├── ActivityRankingServiceTests.swift
-└── CitySearchViewModelTests.swift
-```
+---
+
+## AI Usage
+
+Cursor and ChatGPT were used to assist with project scaffolding, boilerplate generation, and implementation suggestions.
+
+All generated code was manually reviewed, validated, tested, and refined where necessary. Final architecture, business logic, and implementation decisions were verified by the author.
