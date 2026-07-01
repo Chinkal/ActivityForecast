@@ -192,3 +192,9 @@ With additional development time, the application could be enhanced with:
 Cursor and ChatGPT were used to assist with project scaffolding, boilerplate generation, and implementation suggestions.
 
 All generated code was manually reviewed, validated, tested, and refined where necessary. Final architecture, business logic, and implementation decisions were verified by the author.
+
+## Screenshots
+<img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-07-01 at 15 22 00" src="https://github.com/user-attachments/assets/1c7b95d3-8197-4802-85b1-e158010644ca" />
+
+<img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-07-01 at 15 22 05" src="https://github.com/user-attachments/assets/a799b9f6-2386-45fd-8716-4d41add2ce59" />
+
